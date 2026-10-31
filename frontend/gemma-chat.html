@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gemma 4 12B · 本地对话</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --panel:#ffffff; --border:#e2e8f0; --text:#1f2933;
+    --muted:#64748b; --accent:#2563eb; --accent-soft:#eff6ff;
+    --user:#2563eb; --bot:#0f766e; --code-bg:#f1f5f9;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;
+         align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+  header h1{font-size:16px;margin:0;font-weight:600;}
+  header .tag{font-size:12px;color:var(--muted);}
+  .settings{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 18px;background:var(--panel);
+            border-bottom:1px solid var(--border);font-size:13px;}
+  .settings label{color:var(--muted);margin-right:4px;}
+  .settings input{font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);}
+  .settings input.url{flex:1;min-width:220px;}
+  .settings .adv{display:none;gap:10px;flex-wrap:wrap;width:100%;margin-top:4px;}
+  .settings.open .adv{display:flex;}
+  .toggle-adv{color:var(--accent);cursor:pointer;font-size:12px;user-select:none;}
+  .workspace{flex:1;min-height:0;display:flex;}
+  .sessions{width:240px;flex:0 0 240px;background:var(--panel);border-right:1px solid var(--border);
+             padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .new-session{width:100%;height:38px;padding:0 12px;}
+  .session-list{min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:5px;}
+  .session-row{display:flex;align-items:center;gap:5px;min-width:0;}
+  .session-item{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                padding:9px 10px;border:1px solid transparent;border-radius:8px;background:transparent;
+                color:var(--text);font-size:13px;font-weight:500;}
+  .session-item:hover{background:var(--accent-soft);}
+  .session-item.active{background:var(--accent-soft);border-color:#bfdbfe;color:var(--accent);}
+  .delete-session{width:28px;height:28px;padding:0;background:transparent;color:var(--muted);font-size:16px;}
+  .delete-session:hover{background:#fee2e2;color:#dc2626;}
+  .conversation{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
+  #log{flex:1;min-height:0;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
+  .msg{max-width:78%;padding:10px 14px;border-radius:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+  .msg.user{align-self:flex-end;background:var(--accent-soft);border:1px solid #dbeafe;color:var(--text);}
+  .msg.bot{align-self:flex-start;background:var(--panel);border:1px solid var(--border);}
+  .msg .who{font-size:11px;color:var(--muted);margin-bottom:4px;display:block;}
+  .msg pre{background:var(--code-bg);padding:8px 10px;border-radius:8px;overflow:auto;font-size:12.5px;}
+  .msg code{font-family:"SFMono-Regular",Consolas,monospace;}
+  .typing{font-style:italic;color:var(--muted);}
+  footer{display:flex;gap:10px;padding:12px 18px;background:var(--panel);border-top:1px solid var(--border);}
+  footer textarea{flex:1;resize:none;height:52px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;
+                  font-size:14px;font-family:inherit;background:#fff;color:var(--text);}
+  button{cursor:pointer;border:none;border-radius:10px;padding:0 18px;font-size:14px;font-weight:600;color:#fff;
+         background:var(--accent);transition:opacity .15s;}
+  button:hover{opacity:.9;}
+  button.ghost{background:#fff;color:var(--muted);border:1px solid var(--border);font-weight:500;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  .status{font-size:12px;color:var(--muted);padding:0 18px 6px;}
+  .status.err{color:#dc2626;}
+  .status.ok{color:var(--bot);}
+  @media(max-width:700px){
+    .sessions{width:190px;flex-basis:190px;}
+  }
+  @media(max-width:560px){
+    .sessions{width:150px;flex-basis:150px;padding:8px;}
+    .session-item{font-size:12px;padding:8px 6px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gemma 4 12B · 本地对话</h1>
+  <span class="tag">llama-server · OpenAI 兼容 API · 流式输出</span>
+</header>
+
+<div class="settings" id="settings">
+  <div><label>API Base</label><input class="url" id="base" value="http://127.0.0.1:8080/v1" /></div>
+  <div><label>Key</label><input id="key" value="not-needed" size="10" /></div>
+  <div><label>Model</label><input id="model" value="gemma-4" size="12" /></div>
+  <span class="toggle-adv" id="toggleAdv">高级 ▾</span>
+  <div class="adv">
+    <div><label>temp</label><input id="temp" type="number" step="0.1" value="1.0" size="4" /></div>
+    <div><label>top_p</label><input id="top_p" type="number" step="0.05" value="0.95" size="4" /></div>
+    <div><label>top_k</label><input id="top_k" type="number" value="64" size="4" /></div>
+    <div><label>max_tokens</label><input id="max_tokens" type="number" value="2048" size="5" /></div>
+  </div>
+</div>
+
+<div class="workspace">
+  <aside class="sessions">
+    <button id="newSession" class="new-session">+ 新建会话</button>
+    <div id="sessionList" class="session-list"></div>
+  </aside>
+  <main class="conversation">
+    <div class="status" id="status">就绪。先确保 llama-server 已在 127.0.0.1:8080 启动。</div>
+    <div id="log"></div>
+    <footer>
+      <textarea id="input" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+      <button id="send">发送</button>
+      <button id="clear" class="ghost">清空</button>
+    </footer>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = $('log');
+const status = $('status');
+const SESSION_KEY = 'gemma-chat-sessions-v1';
+const ACTIVE_KEY = 'gemma-chat-active-v1';
+// 经 Go 后端访问时走同源 /v1；直接打开 file:// 时回退直连 llama-server。
+const defaultBase = (location.protocol === 'http:' || location.protocol === 'https:')
+  ? location.origin + '/v1'
+  : 'http://127.0.0.1:8080/v1';
+$('base').value = defaultBase;
+let sessions = [];
+let activeId = '';
+let history = [];
+let busy = false;
+
+$('toggleAdv').onclick = () => $('settings').classList.toggle('open');
+
+function setStatus(text, cls){ status.textContent = text; status.className = 'status' + (cls ? ' ' + cls : ''); }
+
+function newId(){
+  return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
+}
+
+function makeSession(){
+  const now = Date.now();
+  return {id:newId(), title:'新会话', messages:[], createdAt:now, updatedAt:now};
+}
+
+function activeSession(){ return sessions.find(s => s.id === activeId) || null; }
+
+function persist(){
+  const current = activeSession();
+  if(!current) return;
+  current.messages = history.map(m => ({role:m.role, content:String(m.content || '')}));
+  current.updatedAt = Date.now();
+  try{
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sessions));
+    localStorage.setItem(ACTIVE_KEY, activeId);
+  }catch(e){ setStatus('本地会话保存失败：浏览器存储空间不足', 'err'); }
+}
+
+function loadSessions(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(SESSION_KEY) || '[]');
+    sessions = Array.isArray(raw) ? raw.filter(s => s && s.id && Array.isArray(s.messages)) : [];
+  }catch(e){ sessions = []; }
+  if(!sessions.length) sessions = [makeSession()];
+  activeId = localStorage.getItem(ACTIVE_KEY) || sessions[0].id;
+  if(!activeSession()) activeId = sessions[0].id;
+  const current = activeSession();
+  history = current.messages.map(m => ({role:m.role, content:String(m.content || '')}));
+  persist();
+}
+
+function titleFor(text){
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > 24 ? clean.slice(0, 24) + '…' : (clean || '新会话');
+}
+
+function renderSessionList(){
+  const box = $('sessionList');
+  box.innerHTML = '';
+  [...sessions].sort((a,b) => b.updatedAt - a.updatedAt).forEach(session => {
+    const row = document.createElement('div'); row.className = 'session-row';
+    const button = document.createElement('button');
+    button.className = 'session-item' + (session.id === activeId ? ' active' : '');
+    button.textContent = session.title || '新会话';
+    button.title = session.title || '新会话';
+    button.onclick = () => switchSession(session.id);
+    const del = document.createElement('button');
+    del.className = 'delete-session'; del.textContent = '×'; del.title = '删除会话';
+    del.onclick = event => deleteSession(session.id, event);
+    row.appendChild(button); row.appendChild(del); box.appendChild(row);
+  });
+}
+
+function renderConversation(){
+  log.innerHTML = '';
+  history.forEach(message => {
+    const body = addBubble(message.role === 'user' ? 'user' : 'bot', message.content);
+    if(message.role !== 'user') body.innerHTML = renderText(message.content);
+  });
+  log.scrollTop = log.scrollHeight;
+}
+
+function switchSession(id){
+  if(busy || id === activeId) return;
+  persist();
+  activeId = id;
+  const current = activeSession();
+  if(!current) return;
+  history = current.messages.map(m => ({role:m.role, content:String(m.content || '')}));
+  renderSessionList(); renderConversation();
+  setStatus('已切换到：' + (current.title || '新会话'));
+}
+
+function createSession(){
+  if(busy) return;
+  persist();
+  const session = makeSession();
+  sessions.push(session); activeId = session.id; history = [];
+  renderSessionList(); renderConversation();
+  $('input').focus(); setStatus('已新建会话');
+}
+
+function deleteSession(id, event){
+  event.stopPropagation();
+  if(busy) return;
+  const target = sessions.find(s => s.id === id);
+  if(!target || !confirm('删除会话“' + (target.title || '新会话') + '”？')) return;
+  sessions = sessions.filter(s => s.id !== id);
+  if(!sessions.length) sessions.push(makeSession());
+  if(activeId === id){
+    activeId = sessions.sort((a,b) => b.updatedAt - a.updatedAt)[0].id;
+    history = activeSession().messages.map(m => ({role:m.role, content:String(m.content || '')}));
+  }
+  persist(); renderSessionList(); renderConversation(); setStatus('会话已删除');
+}
+
+function addBubble(role, content){
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  const who = document.createElement('span'); who.className = 'who';
+  who.textContent = role === 'user' ? '你' : 'Gemma 4';
+  const body = document.createElement('div'); body.className = 'body'; body.textContent = content;
+  el.appendChild(who); el.appendChild(body); log.appendChild(el); log.scrollTop = log.scrollHeight;
+  return body;
+}
+
+// 极简 markdown：代码块 ``` 与行内 `code`
+function renderText(text){
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const parts = String(text || '').split(/```/); let html = '';
+  parts.forEach((p,i)=>{
+    if(i % 2 === 1) html += '<pre><code>'+esc(p)+'</code></pre>';
+    else html += esc(p).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g,'<br>');
+  });
+  return html;
+}
+
+async function send(){
+  if(busy) return;
+  const text = $('input').value.trim();
+  if(!text) return;
+  $('input').value = '';
+  const current = activeSession();
+  if(!current) return;
+  history.push({role:'user', content:text});
+  if(current.title === '新会话') current.title = titleFor(text);
+  persist(); renderSessionList(); addBubble('user', text);
+
+  const bodyEl = addBubble('bot', '');
+  const typing = document.createElement('span'); typing.className='typing'; typing.textContent='思考中…'; bodyEl.appendChild(typing);
+  const payload = {
+    model: $('model').value, messages: history, stream: true,
+    temperature: parseFloat($('temp').value), top_p: parseFloat($('top_p').value),
+    top_k: parseInt($('top_k').value,10), max_tokens: parseInt($('max_tokens').value,10)
+  };
+
+  busy = true; $('send').disabled = true; $('newSession').disabled = true;
+  setStatus('正在请求 llama-server …');
+  let assistant = null;
+  try{
+    const resp = await fetch($('base').value.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+$('key').value},
+      body: JSON.stringify(payload)
+    });
+    if(!resp.ok) throw new Error('HTTP '+resp.status+'：'+await resp.text());
+    assistant = {role:'assistant', content:''}; history.push(assistant); persist(); typing.remove();
+    const reader = resp.body.getReader(); const decoder = new TextDecoder();
+    let buffer = ''; let full = '';
+    const consume = data => {
+      if(!data || data === '[DONE]') return;
+      try{
+        const json = JSON.parse(data);
+        const delta = (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) || '';
+        if(delta){ full += delta; assistant.content = full; bodyEl.innerHTML = renderText(full); persist(); log.scrollTop = log.scrollHeight; }
+      }catch(e){}
+    };
+    while(true){
+      const {done,value} = await reader.read(); if(done) break;
+      buffer += decoder.decode(value, {stream:true}); let idx;
+      while((idx = buffer.indexOf('\n')) >= 0){
+        const line = buffer.slice(0, idx).trim(); buffer = buffer.slice(idx+1);
+        if(line.startsWith('data:')) consume(line.slice(5).trim());
+      }
+    }
+    if(buffer.trim().startsWith('data:')) consume(buffer.trim().slice(5).trim());
+    persist(); setStatus('完成 · 本次输出 '+full.length+' 字符', 'ok');
+  }catch(e){
+    if(assistant) history = history.filter(message => message !== assistant);
+    persist(); typing.remove(); setStatus('请求失败：'+e.message, 'err');
+  }finally{
+    busy = false; $('send').disabled = false; $('newSession').disabled = false; renderSessionList();
+  }
+}
+
+$('newSession').onclick = createSession;
+$('send').onclick = send;
+$('clear').onclick = () => { if(busy) return; history = []; persist(); renderConversation(); setStatus('已清空当前会话'); };
+$('input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+
+// 经 Go 网关访问时统一走同源 /v1；file:// 打开时保留直连 8080。
+(function () {
+  const b = $('base');
+  if (location.protocol.startsWith('http') && !location.host.endsWith(':8080')) b.value = location.origin + '/v1';
+})();
+
+loadSessions(); renderSessionList(); renderConversation();
+const healthBase = $('base').value.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+fetch(healthBase + '/health')
+  .then(r => setStatus(r.ok ? '后端健康，可开始对话 ✓' : '后端返回 '+r.status, r.ok?'ok':'err'))
+  .catch(() => setStatus('未检测到后端，请先启动桌面端或模型服务。', 'err'));
+</script>
+</body>
+</html>

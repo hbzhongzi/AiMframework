@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Open WebUI · 方案A 示例与启动台</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg-soft:#f6f7f9; --panel:#ffffff; --panel-2:#fafbfc;
+    --border:#ececf0; --border-2:#e3e3e8;
+    --text:#1a1a1e; --muted:#74767d; --faint:#9a9ca3;
+    --accent:#2563eb; --accent-soft:#eef3ff; --accent-text:#1d4ed8;
+    --bubble-user:#2563eb; --bubble-user-text:#ffffff;
+    --bubble-bot:#f3f4f6; --bubble-bot-text:#1a1a1e;
+    --code-bg:#0f1115; --code-text:#e6e8eb; --code-inline:#eef3ff;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+  }
+  [data-theme="dark"]{
+    --bg:#0f1115; --bg-soft:#14161b; --panel:#14161b; --panel-2:#181b21;
+    --border:#23262d; --border-2:#2b2f37;
+    --text:#e8eaed; --muted:#9aa0a8; --faint:#6b7079;
+    --accent:#4f8cff; --accent-soft:#16233d; --accent-text:#9bc0ff;
+    --bubble-user:#2563eb; --bubble-user-text:#ffffff;
+    --bubble-bot:#1c1f26; --bubble-bot-text:#e8eaed;
+    --code-bg:#0a0c10; --code-text:#e6e8eb; --code-inline:#16233d;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 18px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--text);display:flex;flex-direction:column;
+       -webkit-font-smoothing:antialiased;transition:background .2s,color .2s;}
+
+  /* header */
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+         padding:14px 22px;border-bottom:1px solid var(--border);}
+  .title{display:flex;flex-direction:column;gap:2px;}
+  .title h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px;}
+  .title .sub{font-size:12px;color:var(--muted);}
+  .head-right{display:flex;align-items:center;gap:10px;}
+  .tabs{display:flex;gap:4px;background:var(--bg-soft);padding:4px;border-radius:10px;border:1px solid var(--border);}
+  .tab{padding:6px 13px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--muted);border:none;background:transparent;transition:.15s;}
+  .tab:hover{color:var(--text);}
+  .tab.active{background:var(--panel);color:var(--text);box-shadow:var(--shadow);}
+  .theme-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--panel);
+            cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--muted);}
+  .theme-btn:hover{color:var(--text);}
+
+  /* status bar */
+  .bar{display:flex;align-items:center;gap:12px;padding:9px 22px;font-size:12px;color:var(--muted);
+       border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);display:inline-block;margin-right:6px;vertical-align:middle;}
+  .dot.ok{background:#22c55e;} .dot.err{background:#ef4444;}
+  .link{color:var(--accent);text-decoration:none;font-size:12px;}
+  .link:hover{text-decoration:underline;}
+
+  .pane{flex:1;display:none;overflow:auto;}
+  .pane.active{display:flex;}
+
+  /* ---------- 示例预览 ---------- */
+  #preview{flex-direction:row;padding:0;}
+  .side{width:248px;background:var(--panel-2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 14px;}
+  .new{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:9px;font-size:13.5px;font-weight:500;cursor:pointer;}
+  .search{margin-top:12px;width:100%;padding:8px 11px;border:1px solid var(--border-2);border-radius:8px;
+          font-size:13px;background:var(--panel);color:var(--text);}
+  .search::placeholder{color:var(--faint);}
+  .sec{font-size:11px;color:var(--faint);margin:16px 6px 8px;letter-spacing:.4px;text-transform:uppercase;}
+  .chat{font-size:13px;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--text);
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chat:hover{background:var(--bg-soft);}
+  .chat.active{background:var(--accent-soft);color:var(--accent-text);}
+  .foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);}
+  .model{font-size:12.5px;padding:8px 10px;border:1px solid var(--border-2);border-radius:8px;color:var(--text);}
+  .user{display:flex;align-items:center;gap:9px;margin-top:12px;font-size:12.5px;color:var(--muted);}
+  .avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;
+          align-items:center;justify-content:center;font-size:12px;font-weight:600;}
+
+  .main{flex:1;display:flex;flex-direction:column;background:var(--bg);}
+  .top{border-bottom:1px solid var(--border);padding:14px 24px;font-size:14px;font-weight:600;
+       display:flex;justify-content:space-between;align-items:center;}
+  .top .m{font-size:12px;font-weight:400;color:var(--muted);}
+  .msgs{flex:1;overflow:auto;padding:28px 24px;display:flex;flex-direction:column;gap:22px;max-width:760px;margin:0 auto;width:100%;}
+  .row{display:flex;gap:14px;align-items:flex-start;}
+  .row.user{flex-direction:row-reverse;}
+  .av{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+      font-size:12px;font-weight:600;color:#fff;}
+  .av.u{background:#9aa0a8;} .av.b{background:var(--accent);}
+  .bub{max-width:74%;padding:13px 16px;border-radius:16px;font-size:14px;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
+  .row.user .bub{background:var(--bubble-user);color:var(--bubble-user-text);border-bottom-right-radius:5px;}
+  .row.bot .bub{background:var(--bubble-bot);color:var(--bubble-bot-text);border-bottom-left-radius:5px;}
+  .bub pre{background:var(--code-bg);color:var(--code-text);padding:12px 14px;border-radius:10px;overflow:auto;font-size:12.5px;line-height:1.6;margin:10px 0 0;}
+  .bub code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;}
+  .bub :not(pre) > code{background:var(--code-inline);padding:1px 5px;border-radius:5px;font-size:13px;}
+  .input{border-top:1px solid var(--border);padding:16px;display:flex;gap:12px;align-items:flex-end;max-width:760px;margin:0 auto;width:100%;}
+  .input textarea{flex:1;resize:none;height:48px;padding:13px 15px;border:1px solid var(--border-2);border-radius:14px;
+                  font-size:14px;font-family:inherit;background:var(--panel);color:var(--text);}
+  .input textarea::placeholder{color:var(--faint);}
+  .send{background:var(--accent);color:#fff;border:none;border-radius:14px;width:48px;height:48px;font-size:17px;cursor:pointer;}
+
+  /* ---------- iframe ---------- */
+  #real{flex-direction:column;padding:0;}
+  #real iframe{flex:1;width:100%;border:none;background:var(--bg);}
+
+  /* ---------- 安装指南 ---------- */
+  #guide{padding:32px 24px;max-width:800px;margin:0 auto;line-height:1.75;font-size:14px;}
+  #guide h2{font-size:15px;font-weight:600;margin:28px 0 10px;}
+  #guide h2:first-child{margin-top:0;}
+  #guide p{color:var(--text);margin:8px 0;}
+  #guide code{background:var(--code-inline);padding:2px 6px;border-radius:5px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--accent-text);}
+  #guide pre{background:var(--code-bg);color:var(--code-text);padding:16px 18px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.65;}
+  #guide pre code{background:none;color:inherit;padding:0;}
+  #guide ol{padding-left:22px;margin:8px 0;}
+  #guide li{margin:7px 0;}
+  .note{background:var(--accent-soft);border:1px solid var(--border-2);color:var(--accent-text);padding:11px 15px;border-radius:10px;font-size:13px;margin:14px 0;}
+  #guide .hint{color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1>Open WebUI · 方案 A 示例与启动台</h1>
+    <div class="sub">Gemma 4 12B 本地部署 · 图形化前端（多会话 / 历史 / RAG / 用户管理）</div>
+  </div>
+  <div class="head-right">
+    <div class="tabs">
+      <button class="tab active" data-pane="preview">界面示例</button>
+      <button class="tab" data-pane="real">真实 Open WebUI</button>
+      <button class="tab" data-pane="guide">安装与连接</button>
+    </div>
+    <button class="theme-btn" id="themeBtn" title="切换浅色 / 深色">◐</button>
+  </div>
+</header>
+
+<div class="bar">
+  <span><span class="dot" id="statusDot"></span><span id="statusText">检测中…</span></span>
+  <a class="link" href="http://localhost:3000" target="_blank">在新标签打开 :3000 ↗</a>
+  <span>后端应已运行：llama-server @ 127.0.0.1:8080</span>
+</div>
+
+<!-- 界面示例 -->
+<div class="pane active" id="preview">
+  <div class="side">
+    <button class="new">+ 新建对话</button>
+    <input class="search" placeholder="搜索对话…" />
+    <div class="sec">最近</div>
+    <div class="chat active">Gemma 4 初次对话</div>
+    <div class="chat">量化概念笔记</div>
+    <div class="chat">RAG 测试：产品手册</div>
+    <div class="chat">中文润色助手</div>
+    <div class="foot">
+      <div class="model">模型：gemma-4（llama-server）</div>
+      <div class="user"><span class="avatar">U</span><span>本地用户 · 管理员</span></div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="top"><span>Gemma 4 初次对话</span><span class="m">上下文 32K · 流式</span></div>
+    <div class="msgs">
+      <div class="row user"><div class="av u">U</div><div class="bub">用一句话解释什么是量化（quantization）？</div></div>
+      <div class="row bot"><div class="av b">G</div><div class="bub">量化是用更低精度的数值（如 4-bit / 8-bit 整数）来表示模型权重，在几乎不损失效果的前提下大幅压缩体积、降低显存与算力需求，让大模型能在消费级显卡上跑起来。
+
+例如把 16 位浮点权重转成 4 位：
+<pre><code>FP16:  0.4821  1.9375  -0.3125   ...   (16 bit)
+Q4_K:  ▒▒▒▒    ▒▒▒▒    ▒▒▒▒     ...   (≈4 bit + 共享缩放)</code></pre>
+
+你当前用的 <code>Q4_K_M</code> 就是这种方案的常见甜点档。</div></div>
+      <div class="row user"><div class="av u">U</div><div class="bub">那 RAG 功能怎么用？</div></div>
+      <div class="row bot"><div class="av b">G</div><div class="bub">在左侧「+ 新建对话」旁的知识库区上传 PDF / TXT / Markdown，Open WebUI 会自动切分、向量化并建立索引。之后在对话里 @ 对应知识库，模型就会基于你上传的文档作答，而不是只靠训练记忆——这就是 RAG（检索增强生成）。</div></div>
+    </div>
+    <div class="input">
+      <textarea placeholder="给 Gemma 4 发消息…（这是示例，不可输入）" disabled></textarea>
+      <button class="send">↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- 真实 iframe -->
+<div class="pane" id="real">
+  <iframe id="owFrame" src="http://localhost:3000"></iframe>
+</div>
+
+<!-- 安装与连接 -->
+<div class="pane" id="guide">
+  <h2>1. 安装 Open WebUI（Docker，Windows）</h2>
+  <p>需先安装 <b>Docker Desktop</b>（开启 WSL2 后端）。管理员 PowerShell 执行：</p>
+  <pre><code>docker run -d -p 3000:8080 ^
+  --add-host=host.docker.internal:host-gateway ^
+  -v open-webui:/app/backend/data ^
+  -e WEBUI_SECRET_KEY=请改成你自己的强密钥 ^
+  --name open-webui --restart always ^
+  ghcr.io/open-webui/open-webui:main</code></pre>
+  <div class="note">关键参数 <code>--add-host=host.docker.internal:host-gateway</code>：让容器内才能访问到宿主机（Windows）上的 llama-server。镜像 <code>:main</code> 较大（≈1.6GB）；若只要纯聊天可换 <code>:slim</code>（≈196MB）。</div>
+
+  <h2>2. 连接 llama-server（后端在 Windows 宿主）</h2>
+  <ol>
+    <li>浏览器打开 <code>http://localhost:3000</code>，首次访问<b>创建管理员账号</b>（设强密码）。</li>
+    <li>进入 ⚙️ <b>Admin Settings → Connections → OpenAI</b>，点 <b>➕ Add Connection</b>。</li>
+    <li>URL 填 <code>http://host.docker.internal:8080/v1</code>（容器内能解析到宿主机的 llama-server；<b>不要写 localhost</b>）。</li>
+    <li>API Key 填 <code>not-needed</code>（llama-server 不校验）。</li>
+    <li>若连接校验报错（4xx）但聊天正常，属正常现象：在 <b>Model IDs (Filter)</b> 手动填 <code>gemma-4</code> 并保存。</li>
+    <li>返回聊天界面，顶部选 <code>gemma-4</code> 开始对话。</li>
+  </ol>
+
+  <h2>3. 安全提示</h2>
+  <ol>
+    <li>创建管理员后，建议在 Admin Settings 中<b>关闭开放注册（Disable Signup）</b>。</li>
+    <li>llama-server 已绑定 <code>127.0.0.1</code>（仅本机）；如需局域网共享，注意 Docker 端口映射与防火墙。</li>
+  </ol>
+  <p class="hint">完整部署文档见 docs/deploy-guide.md；后端启动脚本见 scripts/start-gemma-server.bat。</p>
+</div>
+
+<script>
+  // 主题切换（持久化）
+  const root = document.documentElement;
+  const saved = localStorage.getItem('ow-theme');
+  if(saved) root.setAttribute('data-theme', saved);
+  document.getElementById('themeBtn').onclick = () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('ow-theme', next);
+  };
+
+  // tab 切换
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.pane').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById(t.dataset.pane).classList.add('active');
+    };
+  });
+
+  // 探测 :3000
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  function set(cls, s){ dot.className = 'dot ' + cls; txt.textContent = s; }
+  const frame = document.getElementById('owFrame');
+  frame.onload = () => set('ok','Open WebUI 已在 :3000 运行 ✓');
+  frame.onerror = () => set('err','未检测到 :3000');
+  function check(){ fetch('http://localhost:3000',{mode:'no-cors'}).then(()=>set('ok','Open WebUI 已在 :3000 运行 ✓')).catch(()=>set('err','未检测到 :3000（先按「安装与连接」启动 Docker）')); }
+  check(); setInterval(check, 15000);
+</script>
+</body>
+</html>
